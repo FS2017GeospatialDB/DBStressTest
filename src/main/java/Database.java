@@ -7,7 +7,6 @@ import java.util.Map;
 
 @SuppressWarnings("WeakerAccess")
 public class Database {
-    // private static Database __ = new Database();
     private static Cluster _cluster;
     private static Session _session;
     private static Map<String, PreparedStatement> _cache = new HashMap<>();
@@ -38,10 +37,13 @@ public class Database {
         return _session;
     }
 
+    /**
+     * Get a reference to the static cluster object.
+     */
     public static Cluster getCluster() {return _cluster;}
 
     /**
-     * Prepare a statement (or retrieve it from the cache).
+     * Prepare a statement (or retrieve it from the cache if cached).
      */
     public static PreparedStatement prepareFromCache(String statement) {
         if (_cache.containsKey(statement))
@@ -51,12 +53,16 @@ public class Database {
     }
 
     /**
-     * Auto cleanup the DB connection
+     * Auto close the DB connection when the program quits
      */
     @Override
-    protected void finalize() throws Throwable {
-        super.finalize();
-        if (_cluster != null)
-            _cluster.close();
+    protected void finalize() {
+        try {
+            super.finalize();
+            if (_cluster != null)
+                _cluster.close();
+        } catch (Throwable throwable) {
+            throwable.printStackTrace();
+        }
     }
 }
