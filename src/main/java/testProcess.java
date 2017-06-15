@@ -18,15 +18,22 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 @SuppressWarnings("WeakerAccess")
 class fake_client implements Runnable {
-    private static final int MAX_LNG = 360;
-    private static final int MAX_LAT = 180;
+    public static int MIN_LNG;
+    public static int MAX_LNG;
+    public static int MIN_LAT;
+    public static int MAX_LAT;
+
     public static AtomicInteger query_per_second = new AtomicInteger(0);
+    public static AtomicLong byte_per_second = new AtomicLong(0);
+
     private static Random r = new Random();
     private static Session session = Database.getSession();
-    private static PreparedStatement ps = Database.prepareFromCache("SELECT * FROM global.slave WHERE level=? AND s2_id=? AND time >= ?");
+    private static PreparedStatement ps = Database.prepareFromCache("SELECT json FROM global.slave WHERE level=? AND s2_id=? AND time >= ?");
+
     private Thread t;
     private String threadName;
 
@@ -66,8 +73,9 @@ class fake_client implements Runnable {
     }
 
     private S2LatLng genRandomLatLng() {
-        double lng = MAX_LNG * (0.5 - r.nextDouble());
-        double lat = MAX_LAT * (0.5 - r.nextDouble());
+        double lng = (MIN_LNG + MAX_LNG) / 2 + (MAX_LNG - MIN_LNG) * (0.5 - r.nextDouble());
+        double lat = (MIN_LAT + MAX_LAT) / 2 + (MAX_LAT - MIN_LAT) * (0.5 - r.nextDouble());
+//        System.out.println(lat + ", " + lng);
         return S2LatLng.fromDegrees(lat, lng);
     }
 
@@ -76,9 +84,17 @@ class fake_client implements Runnable {
     }
 
     public void run() {
+        long size;
+        //noinspection InfiniteLoopStatement
         while (true) {
             S2CellId cell = genRandomCell();
             ResultSet rs = session.execute(ps.bind(cell.level(), cell.id(), UUIDs.startOf(System.currentTimeMillis())));
+            while (!rs.isExhausted()) {
+                String temp  = rs.one().getString("json");
+//                System.out.println(temp);
+                size = temp.length();
+                byte_per_second.addAndGet(size);
+            }
             query_per_second.incrementAndGet();
         }
     }
@@ -94,7 +110,6 @@ class fake_client implements Runnable {
 
 
 public class testProcess {
-    // TODO: initialize db later.
     private static Cluster cluster;
     private static Session session;
 
@@ -112,7 +127,6 @@ public class testProcess {
 
     private static void setContactPoints(String contactPoints) {
         String[] contactpts = contactPoints.split(",");
-        System.out.print(contactpts);
         CONTACTPTS = new ArrayList<>();
         for (String host : contactpts) {
             try {
@@ -156,7 +170,15 @@ public class testProcess {
         Database.initialize(CONTACTPTS);
         cluster = Database.getCluster();
         session = Database.getSession();
+
+        // l, b, r, t
+        // 0  1  2  3
+        fake_client.MIN_LNG = (int) BBOX[0];
+        fake_client.MAX_LNG = (int) BBOX[2];
+        fake_client.MIN_LAT = (int) BBOX[1];
+        fake_client.MAX_LAT = (int) BBOX[3];
     }
+
 
     public static void main(String args[]) throws InterruptedException {
         if (args.length != 1) {
@@ -194,6 +216,9 @@ public class testProcess {
         ScheduledExecutorService qps_display = Executors.newSingleThreadScheduledExecutor();
         qps_display.scheduleAtFixedRate(() -> {
             System.out.println("QPS:" + fake_client.query_per_second.getAndSet(0));
+            long byte_size = fake_client.byte_per_second.getAndSet(0);
+            double byte_sizeM = byte_size / 1024.0 / 1024.0;
+            System.out.println("BPS:" + byte_sizeM + "M");
         }, 1, 1, TimeUnit.SECONDS);
     }
 }
