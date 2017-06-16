@@ -1,8 +1,10 @@
 import com.datastax.driver.core.*;
 
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @SuppressWarnings("WeakerAccess")
@@ -19,14 +21,21 @@ public class Database {
     /**
      * Initialize the DB connection.
      */
-    public static void initialize(List<InetAddress> contactPts) {
+    public static void initialize(List<InetAddress> contactPts, String cluster_name) {
+
         PoolingOptions poolingOptions = new PoolingOptions();
         poolingOptions
                 .setConnectionsPerHost(HostDistance.LOCAL, 2, 8);
+
+        Cluster.Builder clusterBuilder = Cluster.builder();
+        clusterBuilder.addContactPoints(contactPts);
+
         _cluster = Cluster.builder()
                 .withPoolingOptions(poolingOptions)
                 .addContactPoints(contactPts)
+                .withClusterName(cluster_name)
                 .build();
+
         _session = _cluster.connect();
     }
 

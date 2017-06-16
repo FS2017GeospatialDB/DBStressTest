@@ -106,6 +106,7 @@ public class testProcess {
     private static int NUM_THREAD = Runtime.getRuntime().availableProcessors();
     private static double[] BBOX = new double[4];
     private static List<InetAddress> CONTACTPTS;
+    private static String CLUSTERNAME;
 
 
     private static void setNumThread(String useNumCores, String numThread) {
@@ -114,7 +115,7 @@ public class testProcess {
         }
     }
 
-    private static void setContactPoints(String contactPoints) {
+    private static void setCassCluster(String contactPoints, String clusterName) {
         String[] contactpts = contactPoints.split(",");
         CONTACTPTS = new ArrayList<>();
         for (String host : contactpts) {
@@ -124,9 +125,10 @@ public class testProcess {
                 e.printStackTrace();
             }
         }
+        CLUSTERNAME = clusterName;
 
         // post behavior
-        Database.initialize(CONTACTPTS);
+        Database.initialize(CONTACTPTS, CLUSTERNAME);
         cluster = Database.getCluster();
         session = Database.getSession();
     }
@@ -173,13 +175,13 @@ public class testProcess {
             String randCell = props.getProperty("rand_cell");
             String bbox = props.getProperty("bbox");
             String fixedLatLng = props.getProperty("fixed_lat_lng");
-            System.out.println(fixedLatLng);
             String contactPts = props.getProperty("contact_points");
+            String clusterName = props.getProperty("cluster_name");
             String useNumThread = props.getProperty("use_num_thread");
             String useNumCores = props.getProperty("use_num_cores");
             String randLevelDist = props.getProperty("rand_level_dist");
 
-            setContactPoints(contactPts);   // this must comes first
+            setCassCluster(contactPts, clusterName);   // this must comes first
             setRandLevelDist(randLevelDist);
             setNumThread(useNumCores, useNumThread);
             setBoundaryBox(randCell, bbox, fixedLatLng);
